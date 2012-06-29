@@ -25,7 +25,7 @@ Works beautifully with the <a href="http://wordpress.org/extend/plugins/rich-tex
 
 == Installation ==
 
-1. Upload `plugin-name.php` to the `/wp-content/plugins/` directory
+1. Upload the User Groups plugin folder to the `/wp-content/plugins/` directory
 1. Activate the plugin through the 'Plugins' menu in WordPress
 1. Create User Groups by going to Users > Groups
 1. Add users to an User Group by visiting their profile page and selecting checkboxes of the groups you'd like to add them to
