@@ -45,10 +45,16 @@ Nope.
 
 == Changelog ==
 
+= 1.1 =
+* Added bulk editing of user groups
+
 = 1.0 =
 * Liftoff!
 
 == Upgrade Notice ==
+
+= 1.1 =
+* Added bulk editing of user groups
 
 = 1.0 =
 Liftoff!
