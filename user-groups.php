@@ -2,7 +2,7 @@
 /*
 Plugin Name: User Groups
 Description: Add user groups to WordPress
-Version: 1.1
+Version: 1.1.1
 Author: Katz Web Services, Inc.
 Author URI: http://www.idxplus.net
 */
