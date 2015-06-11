@@ -45,6 +45,15 @@ Nope.
 
 == Changelog ==
 
+= 1.2.2 on June 11, 2015 =
+* Fixed: PHP notices
+* Fixed: When a User Group color wasn't set, the group would not display in the Users table column
+* Fixed: Potential security issue with `add_query_arg()` - [learn more](https://blog.sucuri.net/2015/04/security-advisory-xss-vulnerability-affecting-multiple-wordpress-plugins.html) (please update!)
+
+= 1.2.1 =
+* Implemented fix for a few bugs reported on WordPress Codex
+* Fixed: User Groups with no users are viewable
+
 = 1.1.1 =
 * Fixed minor PHP message <a href="http://wordpress.org/support/topic/fastcgi-error-2">as reported here</a>
 

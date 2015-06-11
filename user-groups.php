@@ -2,21 +2,34 @@
 /*
 Plugin Name: User Groups
 Description: Add user groups to WordPress
-Version: 1.1.1
+Version: 1.1.2
 Author: Katz Web Services, Inc.
-Author URI: http://www.idxplus.net
+Author URI: https://katz.co
 */
 
-add_action('plugins_loaded', array('KWS_User_Groups', 'load'), 200);
+add_action('plugins_loaded', array('KWS_User_Groups', 'get_instance'), 200);
 
-if(!class_exists('KWS_User_Groups')) {
 class KWS_User_Groups {
 
-	function load() {
-		$KWS_User_Groups = new KWS_User_Groups();
+	/**
+	 * @var KWS_User_Groups
+	 */
+	static $instance = NULL;
+
+	function get_instance() {
+
+		if( !self::$instance ) {
+			self::$instance = new self;
+		}
+
+		return self::$instance;
 	}
 
-	function KWS_User_Groups() {
+	function __construct() {
+		$this->add_hooks();
+	}
+
+	function add_hooks() {
 
 		add_filter('manage_users_columns', array(&$this, 'add_manage_users_columns'), 15, 1);
 		add_action('manage_users_custom_column', array(&$this, 'user_column_data'), 15, 3);
@@ -57,31 +70,42 @@ class KWS_User_Groups {
 		/* Cleanup stuff */
 		add_action( 'delete_user', array(&$this, 'delete_term_relationships'));
 		add_filter( 'sanitize_user', array(&$this, 'disable_username'));
-
 	}
 
-	function get_user_user_groups($user = '') {
-		if(is_object($user)) { $user_id = $user->ID; } elseif(is_int($user*1)) { $user_id = $user*1; }
-		if(empty($user)) { return false;}
+	public static function get_user_user_groups($user = '') {
+
+		$user_id = is_object( $user ) ? $user->ID : absint( $user );
+
+		if( empty( $user_id ) ) {
+			return false;
+		}
+
 		$user_groups = wp_get_object_terms($user_id, 'user-group', array('fields' => 'all_with_object_id'));
+
 		return $user_groups;
 	}
 
-	function get_user_user_group_tags($user, $page = null) {
+	static function get_user_user_group_tags($user, $page = null) {
+
 		$terms = self::get_user_user_groups($user);
-		if(empty($terms)) { return false; }
+
+		if( empty($terms) ) {
+			return false;
+		}
+
 		$in = array();
 		foreach($terms as $term) {
 			$href = empty($page) ? add_query_arg(array('user-group' => $term->slug), admin_url('users.php')) : add_query_arg(array('user-group' => $term->slug), $page);
 			$color = self::get_meta('group-color', $term->term_id);
-			$in[] = sprintf('%s%s%s', '<a style="text-decoration:none; color:white; cursor: pointer; border:0; padding:2px 3px; float:left; margin:0 .3em .2em 0; border-radius:3px; background-color:'.$color.'; color:'.self::get_text_color($color).';" href="'.$href.'" title="'.esc_attr($term->description).'">', $term->name, '</a>');
+			$color = empty( $color ) ? '#ffffff' : $color;
+			$in[] = sprintf('%s%s%s', '<a style="text-decoration:none; color:white; cursor: pointer; border:0; padding:2px 3px; float:left; margin:0 .3em .2em 0; border-radius:3px; background-color:'.$color.'; color:'.self::get_text_color($color).';" href="'.esc_url( $href ).'" title="'.esc_attr($term->description).'">', $term->name, '</a>');
 		}
 
-	  	return implode('', $in);
+		return implode('', $in);
 	}
 
 	function row_actions(  $actions, $term ) {
-		$actions['view'] = sprintf(__('%sView%s', 'user-groups'), '<a href="'.add_query_arg(array('user-group' => $term->slug), admin_url('users.php')).'">', '</a>');
+		$actions['view'] = sprintf(__('%sView%s', 'user-groups'), '<a href="'.esc_url( add_query_arg(array('user-group' => $term->slug), admin_url('users.php')) ).'">', '</a>');
 		return $actions;
 	}
 
@@ -152,40 +176,40 @@ class KWS_User_Groups {
 
 		<h3 id="user-groups">User Groups</h3>
 		<table class="form-table">
-		<tr>
-			<th>
-				<label for="user-group" style="font-weight:bold; display:block;"><?php _e( sprintf(_n(__('Add to Group', 'user-groups'), __('Add to Groups', 'user-groups'), sizeof($terms)))); ?></label>
-				<a href="<?php echo admin_url('edit-tags.php?taxonomy=user-group'); ?>"><?php _e('Add a User Group', 'user-groups'); ?></a>
-			</th>
+			<tr>
+				<th>
+					<label for="user-group" style="font-weight:bold; display:block;"><?php _e( sprintf(_n(__('Add to Group', 'user-groups'), __('Add to Groups', 'user-groups'), sizeof($terms)))); ?></label>
+					<a href="<?php echo admin_url('edit-tags.php?taxonomy=user-group'); ?>"><?php _e('Add a User Group', 'user-groups'); ?></a>
+				</th>
 
-			<td><?php
+				<td><?php
 
-			/* If there are any terms available, loop through them and display checkboxes. */
-			if ( !empty( $terms ) ) {
-				echo '<ul>';
-				foreach ( $terms as $term ) {
+					/* If there are any terms available, loop through them and display checkboxes. */
+					if ( !empty( $terms ) ) {
+						echo '<ul>';
+						foreach ( $terms as $term ) {
 
-					$color = self::get_meta('group-color', $term->term_id);
-					if(!empty($color)) { $color = ' style="padding:2px .5em; border-radius:3px; background-color:'.$color.'; color:'.self::get_text_color($color).'"'; }
-				?>
-					<li><input type="checkbox" name="user-group[]" id="user-group-<?php echo esc_attr( $term->slug ); ?>" value="<?php echo esc_attr( $term->slug ); ?>" <?php checked( true, is_object_in_term( $user->ID, 'user-group', $term->slug ) ); ?> /> <label for="user-group-<?php echo esc_attr( $term->slug ); ?>"<?php echo $color; ?>><?php echo $term->name; ?></label></li>
-				<?php }
-				echo '</ul>';
-			}
+							$color = self::get_meta('group-color', $term->term_id);
+							if(!empty($color)) { $color = ' style="padding:2px .5em; border-radius:3px; background-color:'.$color.'; color:'.self::get_text_color($color).'"'; }
+							?>
+							<li><input type="checkbox" name="user-group[]" id="user-group-<?php echo esc_attr( $term->slug ); ?>" value="<?php echo esc_attr( $term->slug ); ?>" <?php checked( true, is_object_in_term( $user->ID, 'user-group', $term->slug ) ); ?> /> <label for="user-group-<?php echo esc_attr( $term->slug ); ?>"<?php echo $color; ?>><?php echo $term->name; ?></label></li>
+						<?php }
+						echo '</ul>';
+					}
 
-			/* If there are no user-group terms, display a message. */
-			else {
-				_e('There are no user groups defined. <a href="'.admin_url('edit-tags.php?taxonomy=user-group').'">'.__('Add a User Group', 'user-groups').'</a>');
-			}
+					/* If there are no user-group terms, display a message. */
+					else {
+						_e('There are no user groups defined. <a href="'.admin_url('edit-tags.php?taxonomy=user-group').'">'.__('Add a User Group', 'user-groups').'</a>');
+					}
 
-			?></td>
-		</tr>
-	</table>
-<?php
+					?></td>
+			</tr>
+		</table>
+	<?php
 	}
 
 	// Code from http://serennu.com/colour/rgbtohsl.php
-	function get_text_color($hexcode = '') {
+	static function get_text_color($hexcode = '') {
 		$hexcode = str_replace('#', '', $hexcode);
 
 		$redhex  = substr($hexcode,0,2);
@@ -251,7 +275,7 @@ class KWS_User_Groups {
 		}
 
 		if(empty($user_groups) && !$bulk) {
-			$user_groups = @$_POST['user-group'];
+			$user_groups = isset( $_POST['user-group'] ) ? $_POST['user-group'] : NULL;
 		}
 
 		if(is_null($user_groups) || empty($user_groups)) {
@@ -333,55 +357,55 @@ class KWS_User_Groups {
 
 
 	function add_colorpicker_field() {
-?>
-	<tr>
-		<th scope="row" valign="top"><label><?php _e('Color for the User Group', 'genesis'); ?></label></th>
-		<td id="group-color-row">
-			<p>
-				<input type="text" name="user-group[group-color]" id="group-color" value="<?php echo self::get_meta('group-color'); ?>" />
-				<span class="description hide-if-js">If you want to hide header text, add <strong>#blank</strong> as text color.</span>
-				<input type="button" class="button hide-if-no-js" value="Select a Color" id="pickcolor" />
-			</p>
-			<div id="color-picker" style="z-index: 100; background:#eee; border:1px solid #ccc; position:absolute; display:none;"></div>
-		</td>
-	</tr>
-<?php
+		?>
+		<tr>
+			<th scope="row" valign="top"><label><?php _e('Color for the User Group', 'genesis'); ?></label></th>
+			<td id="group-color-row">
+				<p>
+					<input type="text" name="user-group[group-color]" id="group-color" value="<?php echo self::get_meta('group-color'); ?>" />
+					<span class="description hide-if-js">If you want to hide header text, add <strong>#blank</strong> as text color.</span>
+					<input type="button" class="button hide-if-no-js" value="Select a Color" id="pickcolor" />
+				</p>
+				<div id="color-picker" style="z-index: 100; background:#eee; border:1px solid #ccc; position:absolute; display:none;"></div>
+			</td>
+		</tr>
+	<?php
 	}
 
 	function hide_slug() {
 		if(self::is_edit_user_group('all') ) {
-	?>
-		<style type="text/css">
-		.form-wrap form span.description { display: none!important; }
-		</style>
+			?>
+			<style type="text/css">
+				.form-wrap form span.description { display: none!important; }
+			</style>
 
-		<script type="text/javascript">
-			jQuery(document).ready(function($) {
-				$('#menu-posts').removeClass('wp-menu-open wp-has-current-submenu').addClass('wp-not-current-submenu');
-				$('#menu-users').addClass('wp-has-current-submenu wp-menu-open menu-top menu-top-first').removeClass('wp-not-current-submenu');
-				$('#menu-users a.wp-has-submenu').addClass('wp-has-current-submenu wp-menu-open menu-top');
-				$('#menu-posts a.wp-has-submenu').removeClass('wp-has-current-submenu wp-menu-open menu-top');
-				$('#tag-slug').parent('div.form-field').hide();
-				$('.inline-edit-col input[name=slug]').parents('label').hide();
-			});
-		</script>
-	<?php
+			<script type="text/javascript">
+				jQuery(document).ready(function($) {
+					$('#menu-posts').removeClass('wp-menu-open wp-has-current-submenu').addClass('wp-not-current-submenu');
+					$('#menu-users').addClass('wp-has-current-submenu wp-menu-open menu-top menu-top-first').removeClass('wp-not-current-submenu');
+					$('#menu-users a.wp-has-submenu').addClass('wp-has-current-submenu wp-menu-open menu-top');
+					$('#menu-posts a.wp-has-submenu').removeClass('wp-has-current-submenu wp-menu-open menu-top');
+					$('#tag-slug').parent('div.form-field').hide();
+					$('.inline-edit-col input[name=slug]').parents('label').hide();
+				});
+			</script>
+		<?php
 		} elseif(self::is_edit_user_group('edit')) {
-	?>
-		<style type="text/css">
-		.form-table .form-field td span.description, .form-table .form-field { display: none; }
-		</style>
-		<script type="text/javascript">
-			jQuery(document).ready(function($) {
-				$('#menu-posts').removeClass('wp-menu-open wp-has-current-submenu').addClass('wp-not-current-submenu');
-				$('#menu-users').addClass('wp-has-current-submenu wp-menu-open menu-top menu-top-first').removeClass('wp-not-current-submenu');
-				$('#menu-users a.wp-has-submenu').addClass('wp-has-current-submenu wp-menu-open menu-top');
-				$('#menu-posts a.wp-has-submenu').removeClass('wp-has-current-submenu wp-menu-open menu-top');
-				$('#edittag #slug').parents('tr.form-field').addClass('hide-if-js');
-				$('.form-table .form-field').not('.hide-if-js').css('display', 'table-row');
-			});
-		</script>
-	<?php
+			?>
+			<style type="text/css">
+				.form-table .form-field td span.description, .form-table .form-field { display: none; }
+			</style>
+			<script type="text/javascript">
+				jQuery(document).ready(function($) {
+					$('#menu-posts').removeClass('wp-menu-open wp-has-current-submenu').addClass('wp-not-current-submenu');
+					$('#menu-users').addClass('wp-has-current-submenu wp-menu-open menu-top menu-top-first').removeClass('wp-not-current-submenu');
+					$('#menu-users a.wp-has-submenu').addClass('wp-has-current-submenu wp-menu-open menu-top');
+					$('#menu-posts a.wp-has-submenu').removeClass('wp-has-current-submenu wp-menu-open menu-top');
+					$('#edittag #slug').parents('tr.form-field').addClass('hide-if-js');
+					$('.form-table .form-field').not('.hide-if-js').css('display', 'table-row');
+				});
+			</script>
+		<?php
 		}
 	}
 
@@ -407,32 +431,32 @@ class KWS_User_Groups {
 
 		if(self::is_edit_user_group('edit')) { ?>
 
-<h3><?php _e('User Group Settings', 'user-group'); ?></h3>
+			<h3><?php _e('User Group Settings', 'user-group'); ?></h3>
 
-<table class="form-table">
-	<tbody>
-		<tr>
-			<th scope="row" valign="top"><label><?php _e('Color for the User Group', 'genesis'); ?></label></th>
-			<td id="group-color-row">
+			<table class="form-table">
+				<tbody>
+				<tr>
+					<th scope="row" valign="top"><label><?php _e('Color for the User Group', 'genesis'); ?></label></th>
+					<td id="group-color-row">
+						<p>
+							<input type="text" name="user-group[group-color]" id="group-color" value="<?php echo self::get_meta('group-color'); ?>" />
+							<input type="button" class="button hide-if-no-js" value="Select a Color" id="pickcolor" />
+						</p>
+						<div id="color-picker" style="z-index: 100; background:#eee; border:1px solid #ccc; position:absolute; display:none;"></div>
+						<div class="clear"></div>
+					</td>
+				</tr>
+				</tbody>
+			</table>
+		<?php  } else { ?>
+			<div class="form-field">
 				<p>
-					<input type="text" name="user-group[group-color]" id="group-color" value="<?php echo self::get_meta('group-color'); ?>" />
-					<input type="button" class="button hide-if-no-js" value="Select a Color" id="pickcolor" />
+					<input type="text" style="width:40%" name="user-group[group-color]" id="group-color" value="<?php echo self::get_meta('group-color'); ?>" />
+					<input type="button" style="margin-left:.5em;width:auto!important;" class="button hide-if-no-js" value="Select a Color" id="pickcolor" />
 				</p>
-				<div id="color-picker" style="z-index: 100; background:#eee; border:1px solid #ccc; position:absolute; display:none;"></div>
-				<div class="clear"></div>
-			</td>
-		</tr>
-	</tbody>
-</table>
-<?php  } else { ?>
-		<div class="form-field">
-			<p>
-				<input type="text" style="width:40%" name="user-group[group-color]" id="group-color" value="<?php echo self::get_meta('group-color'); ?>" />
-				<input type="button" style="margin-left:.5em;width:auto!important;" class="button hide-if-no-js" value="Select a Color" id="pickcolor" />
-			</p>
-		</div>
-		<div id="color-picker" style="z-index: 100; background:#eee; border:1px solid #ccc; position:absolute; display:none;"></div>
-	<?php
+			</div>
+			<div id="color-picker" style="z-index: 100; background:#eee; border:1px solid #ccc; position:absolute; display:none;"></div>
+		<?php
 		}
 	}
 
@@ -473,7 +497,7 @@ class KWS_User_Groups {
 	function bulk_edit($views) {
 		if (!current_user_can('edit_users') ) { return $views; }
 		$terms = get_terms('user-group', array('hide_empty' => false));
-?>
+		?>
 		<form method="post" id="bulkeditusergroupform" class="alignright" style="clear:right; margin:0 10px;">
 			<fieldset>
 				<legend class="screen-reader-text"><?php _e('Update User Groups', 'user-group'); ?></legend>
@@ -485,19 +509,19 @@ class KWS_User_Groups {
 					<input name="users" value="" type="hidden" id="bulkeditusergroupusers" />
 
 					<label for="user-groups-select" class="screen-reader-text"><?php _('User Group', 'user-group'); ?></label>
-						<select name="user-group" id="user-groups-select" style="max-width: 300px;">
-							<?php
-							$select = '<option value="">'.__( 'Select User Group&hellip;', 'user-group').'</option>';
-							foreach($terms as $term) {
-								$select .= '<option value="'.$term->slug.'">'.$term->name.'</option>'."\n";
-							}
-							echo $select;
-							?>
-						</select>
+					<select name="user-group" id="user-groups-select" style="max-width: 300px;">
+						<?php
+						$select = '<option value="">'.__( 'Select User Group&hellip;', 'user-group').'</option>';
+						foreach($terms as $term) {
+							$select .= '<option value="'.$term->slug.'">'.$term->name.'</option>'."\n";
+						}
+						echo $select;
+						?>
+					</select>
 					<?php wp_nonce_field('bulk-edit-user-group') ?>
 				</div>
 				<div class="clear" style="margin-top:.5em;">
-				<?php submit_button( __( 'Update' ), 'small', 'bulkeditusergroupsubmit', false ); ?>
+					<?php submit_button( __( 'Update' ), 'small', 'bulkeditusergroupsubmit', false ); ?>
 				</div>
 			</fieldset>
 		</form>
@@ -510,7 +534,7 @@ class KWS_User_Groups {
 				});
 			});
 		</script>
-<?php
+		<?php
 		return $views;
 	}
 
@@ -519,7 +543,7 @@ class KWS_User_Groups {
 		$terms = get_terms('user-group', array('hide_empty' => true));
 
 		$select = '<select name="user-group" id="user-groups-select">
-			<option value="0">All Users</option>'."\n";
+		<option value="0">All Users</option>'."\n";
 		$current = false;
 		foreach($terms as $term) {
 			$user_ids = get_objects_in_term($term->term_id, 'user-group');
@@ -530,7 +554,7 @@ class KWS_User_Groups {
 		}
 
 		$select .= '
-		</select>';
+	</select>';
 
 		if($current) {
 			$bgcolor = self::get_meta('group-color', $current->term_id);
@@ -539,7 +563,7 @@ class KWS_User_Groups {
 			$role = false;
 			$role_name = __('users','user-group');
 			if(isset($_GET['role'])) {
-				$role = $_GET['role'];
+				$role = esc_attr( $_GET['role'] );
 				$roles = $wp_roles->get_names();
 				if(array_key_exists($role, $roles)) {
 					$role_name = $roles["{$role}"];
@@ -547,24 +571,23 @@ class KWS_User_Groups {
 						$role_name .= 's';
 					}
 				}
-				$roleli = sprintf('%sRemove Role Filter%s', '<li><a href="'.remove_query_arg('role').'">', '</li>');
 			}
 
-			$colorblock = empty($bgcolor) ? '' : '<span style="width:1.18em; height:1.18em; float:left; margin-right:.25em; background-color:'.self::get_meta('group-color', $current->term_id).';"></span>';
+			$colorblock = ( $bgcolor === '#' || empty($bgcolor) ) ? '' : '<span style="width:1.18em; height:1.18em; float:left; margin-right:.25em; background-color:'.$bgcolor.';"></span>';
 
-		?>
+			?>
 			<div id="user-group-header">
-				<h2><?php echo $colorblock; echo sprintf(__('User Group: %s', 'user-group'), $current->name); ?> <a href="<?php echo admin_url('edit-tags.php?action=edit&taxonomy=user-group&tag_ID='.$current->term_id.'&post_type=post'); ?>" class="add-new-h2" style="background:#fefefe;"><?php _e('Edit User Group', 'user-group'); ?></a></h2>
-			<?php echo wpautop($current->description); ?>
+				<h2><?php echo $colorblock; echo sprintf(__('User Group: %s', 'user-group'), $current->name); ?> <a href="<?php echo admin_url('edit-tags.php?action=edit&taxonomy=user-group&amp;tag_ID='.$current->term_id.'&post_type=post'); ?>" class="add-new-h2" style="background:#fefefe;"><?php _e('Edit User Group', 'user-group'); ?></a></h2>
+				<?php echo wpautop($current->description); ?>
 			</div>
 			<p class="howto" style="font-style:normal;">
 				<span><?php echo sprintf(__('Showing %s in %s','user-group'), $role_name, '&ldquo;'.$current->name.'&rdquo;'); ?>.</span>
 
-				<a href="<?php echo remove_query_arg('user-group');?>" class="user-group-user-group-filter"><span></span> <?php echo sprintf(__('Show all %s','user-group'), $role_name);?></a>
+				<a href="<?php echo esc_url( remove_query_arg('user-group') );?>" class="user-group-user-group-filter"><span></span> <?php echo sprintf(__('Show all %s','user-group'), $role_name);?></a>
 
-			<?php if(!empty($role)) { ?>
-				<a href="<?php echo remove_query_arg('role'); ?>" class="user-group-user-group-filter"><span></span> <?php echo sprintf(__('Show all users in "%s"','user-group'), $current->name); ?></a>
-			<?php } ?>
+				<?php if(!empty($role)) { ?>
+					<a href="<?php echo esc_url( remove_query_arg('role') ); ?>" class="user-group-user-group-filter"><span></span> <?php echo sprintf(__('Show all users in "%s"','user-group'), $current->name); ?></a>
+				<?php } ?>
 			</p>
 			<div class="clear"></div>
 		<?php
@@ -579,34 +602,34 @@ class KWS_User_Groups {
 		?>
 		<label for="user-groups-select"><?php _e('User Groups:', 'user-group'); ?></label>
 
-		<form method="get" action="<?php echo preg_replace('/(.*?)\/users/ism', 'users', add_query_arg($args, remove_query_arg('user-group'))); ?>" style="display:inline;">
+		<form method="get" action="<?php echo esc_url( preg_replace('/(.*?)\/users/ism', 'users', add_query_arg($args, remove_query_arg('user-group'))) ); ?>" style="display:inline;">
 			<?php  echo $select; ?>
 		</form>
 		<style type="text/css">
 			.subsubsub li.user-group { display: inline-block!important; }
 		</style>
 		<script type="text/javascript">
-		jQuery(document).ready(function($) {
-			<?php if(isset($_GET['user-group'])) { ?>
-			$('ul.subsubsub li a').each(function() {
-				var $that = $(this);
-				$(this).attr('href', function() {
-					var sep = $that.attr('href').match(/\?/i) ? '&' : '?';
-					return $(this).attr('href') + sep +'user-group=<?php echo esc_attr($_GET['user-group']); ?>';
+			jQuery(document).ready(function($) {
+				<?php if(isset($_GET['user-group'])) { ?>
+				$('ul.subsubsub li a').each(function() {
+					var $that = $(this);
+					$(this).attr('href', function() {
+						var sep = $that.attr('href').match(/\?/i) ? '&' : '?';
+						return $(this).attr('href') + sep +'user-group=<?php echo esc_attr($_GET['user-group']); ?>';
+					});
+				});
+				<?php } ?>
+				$("#user-groups-select").change(function() {
+					var action = $(this).parents("form").attr('action');
+					if(action.match(/\?/i)) {
+						action = action + '&user-group=' + $(this).val();
+					} else {
+						action = action + '?user-group=' + $(this).val();
+					}
+
+					window.location = action;
 				});
 			});
-			<?php } ?>
-			$("#user-groups-select").change(function() {
-				var action = $(this).parents("form").attr('action');
-				if(action.match(/\?/i)) {
-					action = action + '&user-group=' + $(this).val();
-				} else {
-					action = action + '?user-group=' + $(this).val();
-				}
-
-				window.location = action;
-			});
-		});
 		</script>
 
 		<?php
@@ -642,14 +665,21 @@ class KWS_User_Groups {
 	function js_includes() { if(!self::is_edit_user_group() ) { return; } wp_enqueue_script('farbtastic', array('jquery')); }
 
 	function user_column_data($value, $column_name, $user_id) {
-		switch($column_name) {
+
+		switch( $column_name ) {
 			case 'user-group':
-				return self::get_user_user_group_tags($user_id);
-			  	break;
+				return self::get_user_user_group_tags( $user_id );
+				break;
 		}
 		return $value;
 	}
 
+	/**
+	 * Add the label to the table header
+	 * @param $defaults
+	 *
+	 * @return mixed
+	 */
 	function add_manage_users_columns($defaults) {
 
 		$defaults['user-group'] = __('User Group', 'user-group');
@@ -659,73 +689,73 @@ class KWS_User_Groups {
 
 	function colorpicker() {
 
-	if(!self::is_edit_user_group() ) { return; }
+		if(!self::is_edit_user_group() ) { return; }
 
-	?>
-	<script type="text/javascript">
-	/* <![CDATA[ */
-		var farbtastic;
-		var default_color = '#333';
-		var old_color = null;
+		?>
+		<script type="text/javascript">
+			/* <![CDATA[ */
+			var farbtastic;
+			var default_color = '#333';
+			var old_color = null;
 
-		function pickColor(color) {
-			jQuery('#group-color').val(color).css('background', color);
-			farbtastic.setColor(color);
-			jQuery('#group-color').processColor((farbtastic.hsl[2] * 100), (farbtastic.hsl[1] * 100));
-		}
-
-		jQuery(document).ready(function() {
-
-			jQuery('#pickcolor,#group-color').click(function() {
-				jQuery('#color-picker').show();
-			});
-
-			jQuery('#defaultcolor').click(function() {
-				pickColor(default_color);
-				jQuery('#group-color').val(default_color).css('background', default_color)
-			});
-
-			jQuery('#group-color').keyup(function() {
-				var _hex = jQuery('#group-color').val();
-				var hex = _hex;
-				if ( hex[0] != '#' )
-					hex = '#' + hex;
-				hex = hex.replace(/[^#a-fA-F0-9]+/, '');
-				if ( hex != _hex )
-					jQuery('#group-color').val(hex).css('background', hex);
-				if ( hex.length == 4 || hex.length == 7 )
-					pickColor( hex );
-			});
-
-			jQuery(document).mousedown(function(){
-				jQuery('#color-picker').each( function() {
-					var display = jQuery(this).css('display');
-					if (display == 'block')
-						jQuery(this).fadeOut(2);
-				});
-			});
-
-			farbtastic = jQuery.farbtastic('#color-picker', function(color) { pickColor(color); });
-			pickColor(jQuery('#group-color').val());
-		});
-
-		jQuery.fn.processColor = function(black, sat) {
-			if(sat > 40) { black = black - 10;}
-
-			if(black <= 50) {
-				jQuery(this).css('color', '#ffffff');
-			} else {
-				jQuery(this).css('color', 'black');
+			function pickColor(color) {
+				jQuery('#group-color').val(color).css('background', color);
+				farbtastic.setColor(color);
+				jQuery('#group-color').processColor((farbtastic.hsl[2] * 100), (farbtastic.hsl[1] * 100));
 			}
-		};
-	/* ]]> */
-	</script>
+
+			jQuery(document).ready(function() {
+
+				jQuery('#pickcolor,#group-color').click(function() {
+					jQuery('#color-picker').show();
+				});
+
+				jQuery('#defaultcolor').click(function() {
+					pickColor(default_color);
+					jQuery('#group-color').val(default_color).css('background', default_color)
+				});
+
+				jQuery('#group-color').keyup(function() {
+					var _hex = jQuery('#group-color').val();
+					var hex = _hex;
+					if ( hex[0] != '#' )
+						hex = '#' + hex;
+					hex = hex.replace(/[^#a-fA-F0-9]+/, '');
+					if ( hex != _hex )
+						jQuery('#group-color').val(hex).css('background', hex);
+					if ( hex.length == 4 || hex.length == 7 )
+						pickColor( hex );
+				});
+
+				jQuery(document).mousedown(function(){
+					jQuery('#color-picker').each( function() {
+						var display = jQuery(this).css('display');
+						if (display == 'block')
+							jQuery(this).fadeOut(2);
+					});
+				});
+
+				farbtastic = jQuery.farbtastic('#color-picker', function(color) { pickColor(color); });
+				pickColor(jQuery('#group-color').val());
+			});
+
+			jQuery.fn.processColor = function(black, sat) {
+				if(sat > 40) { black = black - 10;}
+
+				if(black <= 50) {
+					jQuery(this).css('color', '#ffffff');
+				} else {
+					jQuery(this).css('color', 'black');
+				}
+			};
+			/* ]]> */
+		</script>
 	<?php
 	}
 
-	function get_meta($key = '', $term_id = 0) {
+	public static function get_meta($key = '', $term_id = 0) {
 
-		if(isset($_GET['tag_ID'])) { $term_id = $_GET['tag_ID']; }
+		if(isset($_GET['tag_ID'])) { $term_id = absint( $_GET['tag_ID'] ); }
 		if(empty($term_id)) { return false; }
 
 		$term_meta = (array) get_option('user-group-meta');
@@ -740,7 +770,7 @@ class KWS_User_Groups {
 
 	}
 
-	function is_edit_user_group($page = false) {
+	static function is_edit_user_group($page = false) {
 		global $pagenow;
 
 		if(
@@ -761,5 +791,4 @@ class KWS_User_Groups {
 
 		return false;
 	}
-}
 }
