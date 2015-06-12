@@ -45,7 +45,7 @@ Nope.
 
 == Changelog ==
 
-= 1.2.2 on June 11, 2015 =
+= 1.2.2 & 1.2.3 on June 11, 2015 =
 * Fixed: PHP notices
 * Fixed: When a User Group color wasn't set, the group would not display in the Users table column
 * Fixed: Potential security issue with `add_query_arg()` - [learn more](https://blog.sucuri.net/2015/04/security-advisory-xss-vulnerability-affecting-multiple-wordpress-plugins.html) (please update!)

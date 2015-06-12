@@ -2,7 +2,7 @@
 /*
 Plugin Name: User Groups
 Description: Add user groups to WordPress
-Version: 1.1.2
+Version: 1.1.3
 Author: Katz Web Services, Inc.
 Author URI: https://katz.co
 */
@@ -16,7 +16,7 @@ class KWS_User_Groups {
 	 */
 	static $instance = NULL;
 
-	function get_instance() {
+	static function get_instance() {
 
 		if( !self::$instance ) {
 			self::$instance = new self;
